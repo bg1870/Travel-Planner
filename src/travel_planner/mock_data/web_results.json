@@ -1,0 +1,92 @@
+{
+  "web_results": {
+    "paris travel tips": [
+      {
+        "title": "Top 10 Paris Travel Tips for First-Time Visitors",
+        "snippet": "Visit the Eiffel Tower early morning to avoid crowds. Buy a carnet of metro tickets for savings. Most museums are free on the first Sunday of the month.",
+        "source": "travelblog.com"
+      },
+      {
+        "title": "Paris Budget Guide 2026",
+        "snippet": "Average daily budget for Paris: $80-120 budget, $150-250 mid-range, $350+ luxury. Eating at boulangeries and markets saves significantly vs restaurants.",
+        "source": "budgettravel.org"
+      }
+    ],
+    "paris safety": [
+      {
+        "title": "Is Paris Safe? 2026 Safety Guide",
+        "snippet": "Paris is generally safe for tourists. Watch for pickpockets at major tourist sites and on the metro. Avoid the northern outskirts at night.",
+        "source": "safetravels.com"
+      }
+    ],
+    "tokyo travel tips": [
+      {
+        "title": "First Time in Tokyo: Essential Tips",
+        "snippet": "Get a Suica/Pasmo card for transit. Convenience stores (konbini) have excellent cheap meals. Tipping is not customary and can be considered rude.",
+        "source": "japanguide.com"
+      },
+      {
+        "title": "Tokyo on a Budget",
+        "snippet": "Average daily budget: $50-80 budget, $100-180 mid-range, $250+ luxury. 100-yen shops and ramen joints keep costs down. JR Pass saves on day trips.",
+        "source": "budgettravel.org"
+      }
+    ],
+    "tokyo cherry blossom": [
+      {
+        "title": "Tokyo Cherry Blossom Forecast 2026",
+        "snippet": "Cherry blossoms expected late March to mid-April. Best spots: Ueno Park, Shinjuku Gyoen, Meguro River. Book accommodation months in advance for this period.",
+        "source": "japan-weather.com"
+      }
+    ],
+    "new york travel tips": [
+      {
+        "title": "NYC First Timer's Guide",
+        "snippet": "Get a 7-day unlimited MetroCard ($34). Walk across the Brooklyn Bridge at sunset. Broadway lottery tickets can save 50-70% on shows.",
+        "source": "nycgo.com"
+      },
+      {
+        "title": "NYC Budget Breakdown",
+        "snippet": "Average daily budget: $100-150 budget, $200-350 mid-range, $500+ luxury. Many museums have pay-what-you-wish hours. Street food is excellent and cheap.",
+        "source": "budgettravel.org"
+      }
+    ],
+    "bali travel tips": [
+      {
+        "title": "Bali Travel Essentials",
+        "snippet": "Rent a scooter for $5/day to get around. Negotiate prices at markets. Temples require sarongs (often available to borrow). Wet season still has sunny mornings.",
+        "source": "balitravelguide.com"
+      },
+      {
+        "title": "Bali Budget Guide",
+        "snippet": "Average daily budget: $25-40 budget, $60-120 mid-range, $200+ luxury. Local warungs serve meals for $2-5. Luxury villas with private pools start at $100/night.",
+        "source": "budgettravel.org"
+      }
+    ],
+    "bali weather march": [
+      {
+        "title": "Bali Weather in March",
+        "snippet": "March is the tail end of wet season. Expect afternoon showers but sunny mornings. Average temperature 24-31C. Humidity is high. Lower hotel prices than peak season.",
+        "source": "baliweather.com"
+      }
+    ],
+    "istanbul travel tips": [
+      {
+        "title": "Istanbul Travel Guide 2026",
+        "snippet": "Get an Istanbulkart for transit ($3 and load credit). Haggling is expected at the Grand Bazaar. Visit the Asian side for authentic food and lower prices.",
+        "source": "turkeytravel.com"
+      },
+      {
+        "title": "Istanbul Budget Breakdown",
+        "snippet": "Average daily budget: $30-50 budget, $70-130 mid-range, $200+ luxury. Street food (simit, balik ekmek) is excellent and costs $1-3. Turkish baths from $20.",
+        "source": "budgettravel.org"
+      }
+    ],
+    "istanbul bazaar": [
+      {
+        "title": "Grand Bazaar Shopping Guide",
+        "snippet": "Over 4,000 shops in the world's oldest covered market. Best buys: ceramics, leather, spices, Turkish lamps. Always counter-offer at 40-50% of the asking price.",
+        "source": "istanbulguide.com"
+      }
+    ]
+  }
+}

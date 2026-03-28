@@ -1,0 +1,69 @@
+{
+  "budget_reference": {
+    "paris": {
+      "cost_tier": "high",
+      "daily_costs_usd": {
+        "budget":    { "accommodation": 90,  "food": 35, "transport": 16, "activities": 20 },
+        "mid_range": { "accommodation": 160, "food": 60, "transport": 25, "activities": 40 },
+        "luxury":    { "accommodation": 350, "food": 120, "transport": 50, "activities": 80 }
+      },
+      "default_budget_split": {
+        "flights_pct": 35,
+        "hotels_pct": 45,
+        "activities_pct": 20
+      }
+    },
+    "tokyo": {
+      "cost_tier": "high",
+      "daily_costs_usd": {
+        "budget":    { "accommodation": 60,  "food": 25, "transport": 10, "activities": 15 },
+        "mid_range": { "accommodation": 140, "food": 50, "transport": 15, "activities": 35 },
+        "luxury":    { "accommodation": 300, "food": 100, "transport": 30, "activities": 70 }
+      },
+      "default_budget_split": {
+        "flights_pct": 40,
+        "hotels_pct": 40,
+        "activities_pct": 20
+      }
+    },
+    "new_york": {
+      "cost_tier": "very_high",
+      "daily_costs_usd": {
+        "budget":    { "accommodation": 120, "food": 40, "transport": 15, "activities": 25 },
+        "mid_range": { "accommodation": 220, "food": 70, "transport": 20, "activities": 50 },
+        "luxury":    { "accommodation": 450, "food": 150, "transport": 50, "activities": 100 }
+      },
+      "default_budget_split": {
+        "flights_pct": 30,
+        "hotels_pct": 50,
+        "activities_pct": 20
+      }
+    },
+    "bali": {
+      "cost_tier": "low",
+      "daily_costs_usd": {
+        "budget":    { "accommodation": 25,  "food": 10, "transport": 5,  "activities": 10 },
+        "mid_range": { "accommodation": 70,  "food": 25, "transport": 10, "activities": 25 },
+        "luxury":    { "accommodation": 200, "food": 60, "transport": 20, "activities": 50 }
+      },
+      "default_budget_split": {
+        "flights_pct": 50,
+        "hotels_pct": 30,
+        "activities_pct": 20
+      }
+    },
+    "istanbul": {
+      "cost_tier": "moderate",
+      "daily_costs_usd": {
+        "budget":    { "accommodation": 40,  "food": 15, "transport": 5,  "activities": 10 },
+        "mid_range": { "accommodation": 90,  "food": 30, "transport": 10, "activities": 25 },
+        "luxury":    { "accommodation": 220, "food": 70, "transport": 20, "activities": 50 }
+      },
+      "default_budget_split": {
+        "flights_pct": 35,
+        "hotels_pct": 40,
+        "activities_pct": 25
+      }
+    }
+  }
+}

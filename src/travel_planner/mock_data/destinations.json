@@ -1,0 +1,389 @@
+{
+  "destinations": {
+    "paris": {
+      "city": "Paris",
+      "country": "France",
+      "currency": "EUR",
+      "usd_exchange_rate": 0.92,
+      "timezone": "Europe/Paris",
+      "airport_code": "CDG",
+      "weather_by_month": {
+        "january":   { "avg_high_c": 7,  "avg_low_c": 2,  "rain_days": 10, "description": "Cold and grey, occasional frost" },
+        "february":  { "avg_high_c": 8,  "avg_low_c": 2,  "rain_days": 9,  "description": "Cold with occasional sunny spells" },
+        "march":     { "avg_high_c": 12, "avg_low_c": 5,  "rain_days": 10, "description": "Mild, spring beginning, occasional rain" },
+        "april":     { "avg_high_c": 16, "avg_low_c": 7,  "rain_days": 9,  "description": "Pleasant spring weather, parks in bloom" },
+        "may":       { "avg_high_c": 20, "avg_low_c": 11, "rain_days": 9,  "description": "Warm and comfortable, ideal for walking" },
+        "june":      { "avg_high_c": 23, "avg_low_c": 14, "rain_days": 8,  "description": "Warm, long days, peak tourist season starting" },
+        "july":      { "avg_high_c": 25, "avg_low_c": 16, "rain_days": 7,  "description": "Hot, peak tourist season, some locals away" },
+        "august":    { "avg_high_c": 25, "avg_low_c": 16, "rain_days": 7,  "description": "Hot, many shops close for vacation" },
+        "september": { "avg_high_c": 21, "avg_low_c": 13, "rain_days": 8,  "description": "Warm, crowds thinning, pleasant" },
+        "october":   { "avg_high_c": 16, "avg_low_c": 9,  "rain_days": 9,  "description": "Mild autumn, beautiful foliage" },
+        "november":  { "avg_high_c": 10, "avg_low_c": 5,  "rain_days": 10, "description": "Cool, grey, fewer tourists" },
+        "december":  { "avg_high_c": 7,  "avg_low_c": 3,  "rain_days": 10, "description": "Cold, festive Christmas markets" }
+      },
+      "best_time_to_visit": "April to June and September to October",
+      "areas": [
+        {
+          "name": "Le Marais",
+          "description": "Historic district with trendy shops, galleries, and cafes. Very walkable.",
+          "vibe": "trendy, historic, walkable",
+          "distance_to_center_km": 0.5,
+          "avg_hotel_price_usd": 180
+        },
+        {
+          "name": "Saint-Germain-des-Pres",
+          "description": "Left Bank literary quarter with upscale boutiques and classic bistros.",
+          "vibe": "upscale, literary, classic",
+          "distance_to_center_km": 1.0,
+          "avg_hotel_price_usd": 200
+        },
+        {
+          "name": "Montmartre",
+          "description": "Bohemian hilltop village with Sacre-Coeur, artists, and nightlife.",
+          "vibe": "bohemian, artistic, lively",
+          "distance_to_center_km": 3.5,
+          "avg_hotel_price_usd": 120
+        },
+        {
+          "name": "Latin Quarter",
+          "description": "Student area near the Sorbonne with budget-friendly dining and bookshops.",
+          "vibe": "budget-friendly, youthful, intellectual",
+          "distance_to_center_km": 1.2,
+          "avg_hotel_price_usd": 130
+        },
+        {
+          "name": "Champs-Elysees",
+          "description": "Iconic avenue with luxury hotels and flagship stores. Tourist-heavy.",
+          "vibe": "luxury, touristy, prestigious",
+          "distance_to_center_km": 2.0,
+          "avg_hotel_price_usd": 350
+        }
+      ],
+      "average_costs_usd": {
+        "budget_hotel_per_night": 90,
+        "mid_hotel_per_night": 160,
+        "luxury_hotel_per_night": 350,
+        "budget_meal": 12,
+        "mid_meal": 30,
+        "fine_dining_meal": 80,
+        "metro_day_pass": 16,
+        "taxi_per_km": 2.5
+      },
+      "recommended_airlines_from": {
+        "cairo": ["EgyptAir", "Air France"],
+        "new_york": ["Air France", "Delta", "United"],
+        "london": ["Eurostar", "Air France", "EasyJet"],
+        "istanbul": ["Turkish Airlines", "Air France"],
+        "tokyo": ["Air France", "ANA"]
+      }
+    },
+    "tokyo": {
+      "city": "Tokyo",
+      "country": "Japan",
+      "currency": "JPY",
+      "usd_exchange_rate": 149.5,
+      "timezone": "Asia/Tokyo",
+      "airport_code": "NRT",
+      "weather_by_month": {
+        "january":   { "avg_high_c": 10, "avg_low_c": 2,  "rain_days": 5,  "description": "Cold and dry, clear skies common" },
+        "february":  { "avg_high_c": 11, "avg_low_c": 3,  "rain_days": 6,  "description": "Cold, occasional snow, plum blossoms" },
+        "march":     { "avg_high_c": 14, "avg_low_c": 5,  "rain_days": 10, "description": "Warming up, cherry blossom season begins late March" },
+        "april":     { "avg_high_c": 19, "avg_low_c": 10, "rain_days": 10, "description": "Cherry blossoms peak, warm and pleasant" },
+        "may":       { "avg_high_c": 24, "avg_low_c": 15, "rain_days": 10, "description": "Warm, comfortable, before rainy season" },
+        "june":      { "avg_high_c": 26, "avg_low_c": 19, "rain_days": 14, "description": "Rainy season (tsuyu), humid and wet" },
+        "july":      { "avg_high_c": 30, "avg_low_c": 23, "rain_days": 12, "description": "Hot and humid, summer festivals begin" },
+        "august":    { "avg_high_c": 31, "avg_low_c": 24, "rain_days": 9,  "description": "Hottest month, Obon holiday season" },
+        "september": { "avg_high_c": 27, "avg_low_c": 20, "rain_days": 12, "description": "Still warm, typhoon risk, crowds ease" },
+        "october":   { "avg_high_c": 22, "avg_low_c": 14, "rain_days": 10, "description": "Comfortable autumn, fall foliage begins" },
+        "november":  { "avg_high_c": 17, "avg_low_c": 9,  "rain_days": 7,  "description": "Cool and pleasant, autumn colors peak" },
+        "december":  { "avg_high_c": 12, "avg_low_c": 4,  "rain_days": 5,  "description": "Cold and dry, holiday illuminations" }
+      },
+      "best_time_to_visit": "March to May and October to November",
+      "areas": [
+        {
+          "name": "Shinjuku",
+          "description": "Massive transit hub with entertainment, nightlife, and department stores.",
+          "vibe": "energetic, nightlife, convenient",
+          "distance_to_center_km": 0.0,
+          "avg_hotel_price_usd": 150
+        },
+        {
+          "name": "Shibuya",
+          "description": "Youth culture epicenter with fashion, dining, and the famous crossing.",
+          "vibe": "trendy, youthful, bustling",
+          "distance_to_center_km": 2.0,
+          "avg_hotel_price_usd": 140
+        },
+        {
+          "name": "Asakusa",
+          "description": "Traditional area with Senso-ji temple, street food, and old Tokyo charm.",
+          "vibe": "traditional, cultural, affordable",
+          "distance_to_center_km": 5.0,
+          "avg_hotel_price_usd": 90
+        },
+        {
+          "name": "Ginza",
+          "description": "Upscale shopping and dining district with luxury brands and fine restaurants.",
+          "vibe": "luxury, upscale, refined",
+          "distance_to_center_km": 3.0,
+          "avg_hotel_price_usd": 250
+        },
+        {
+          "name": "Akihabara",
+          "description": "Electronics and anime district, budget-friendly accommodation nearby.",
+          "vibe": "geeky, budget, electric",
+          "distance_to_center_km": 4.0,
+          "avg_hotel_price_usd": 80
+        }
+      ],
+      "average_costs_usd": {
+        "budget_hotel_per_night": 60,
+        "mid_hotel_per_night": 140,
+        "luxury_hotel_per_night": 300,
+        "budget_meal": 8,
+        "mid_meal": 20,
+        "fine_dining_meal": 100,
+        "metro_day_pass": 6,
+        "taxi_per_km": 4.0
+      },
+      "recommended_airlines_from": {
+        "cairo": ["Turkish Airlines", "Emirates", "EgyptAir"],
+        "new_york": ["ANA", "JAL", "United", "Delta"],
+        "london": ["ANA", "JAL", "British Airways"],
+        "paris": ["Air France", "ANA"],
+        "istanbul": ["Turkish Airlines", "ANA"]
+      }
+    },
+    "new_york": {
+      "city": "New York",
+      "country": "United States",
+      "currency": "USD",
+      "usd_exchange_rate": 1.0,
+      "timezone": "America/New_York",
+      "airport_code": "JFK",
+      "weather_by_month": {
+        "january":   { "avg_high_c": 3,  "avg_low_c": -3, "rain_days": 10, "description": "Cold with occasional snowstorms" },
+        "february":  { "avg_high_c": 5,  "avg_low_c": -2, "rain_days": 9,  "description": "Cold, shortest month, some snow" },
+        "march":     { "avg_high_c": 10, "avg_low_c": 2,  "rain_days": 11, "description": "Early spring, still chilly, rain likely" },
+        "april":     { "avg_high_c": 17, "avg_low_c": 7,  "rain_days": 11, "description": "Warming up, Central Park in bloom" },
+        "may":       { "avg_high_c": 22, "avg_low_c": 12, "rain_days": 11, "description": "Pleasant, outdoor events begin" },
+        "june":      { "avg_high_c": 27, "avg_low_c": 17, "rain_days": 10, "description": "Warm, summer in the city" },
+        "july":      { "avg_high_c": 30, "avg_low_c": 21, "rain_days": 10, "description": "Hot and humid, rooftop bars peak season" },
+        "august":    { "avg_high_c": 29, "avg_low_c": 20, "rain_days": 10, "description": "Hot, locals leave for the Hamptons" },
+        "september": { "avg_high_c": 25, "avg_low_c": 16, "rain_days": 8,  "description": "Warm, Fashion Week, great energy" },
+        "october":   { "avg_high_c": 18, "avg_low_c": 10, "rain_days": 8,  "description": "Crisp fall weather, beautiful foliage" },
+        "november":  { "avg_high_c": 12, "avg_low_c": 5,  "rain_days": 9,  "description": "Cool, Thanksgiving, holiday prep" },
+        "december":  { "avg_high_c": 6,  "avg_low_c": 0,  "rain_days": 10, "description": "Cold, holiday lights and markets" }
+      },
+      "best_time_to_visit": "April to June and September to November",
+      "areas": [
+        {
+          "name": "Midtown Manhattan",
+          "description": "Times Square, Broadway, Empire State Building. Tourist central, ultra-convenient.",
+          "vibe": "touristy, convenient, bustling",
+          "distance_to_center_km": 0.0,
+          "avg_hotel_price_usd": 280
+        },
+        {
+          "name": "Lower Manhattan",
+          "description": "Financial district with One World Trade, affordable weekend hotels.",
+          "vibe": "business, historic, quieter weekends",
+          "distance_to_center_km": 4.0,
+          "avg_hotel_price_usd": 200
+        },
+        {
+          "name": "SoHo",
+          "description": "Trendy neighborhood with cast-iron architecture, galleries, and boutique shopping.",
+          "vibe": "trendy, artistic, upscale",
+          "distance_to_center_km": 3.0,
+          "avg_hotel_price_usd": 250
+        },
+        {
+          "name": "Brooklyn (Williamsburg)",
+          "description": "Hip neighborhood across the river with craft food, music venues, and street art.",
+          "vibe": "hip, artsy, local",
+          "distance_to_center_km": 6.0,
+          "avg_hotel_price_usd": 160
+        },
+        {
+          "name": "Upper West Side",
+          "description": "Residential area near Central Park and the Museum of Natural History.",
+          "vibe": "residential, family-friendly, cultural",
+          "distance_to_center_km": 3.5,
+          "avg_hotel_price_usd": 220
+        }
+      ],
+      "average_costs_usd": {
+        "budget_hotel_per_night": 120,
+        "mid_hotel_per_night": 220,
+        "luxury_hotel_per_night": 450,
+        "budget_meal": 15,
+        "mid_meal": 35,
+        "fine_dining_meal": 120,
+        "metro_day_pass": 7.5,
+        "taxi_per_km": 3.0
+      },
+      "recommended_airlines_from": {
+        "cairo": ["EgyptAir", "Emirates", "Turkish Airlines"],
+        "london": ["British Airways", "Virgin Atlantic", "Delta"],
+        "paris": ["Air France", "Delta", "United"],
+        "istanbul": ["Turkish Airlines", "Delta"],
+        "tokyo": ["ANA", "JAL", "United", "Delta"]
+      }
+    },
+    "bali": {
+      "city": "Bali",
+      "country": "Indonesia",
+      "currency": "IDR",
+      "usd_exchange_rate": 15700,
+      "timezone": "Asia/Makassar",
+      "airport_code": "DPS",
+      "weather_by_month": {
+        "january":   { "avg_high_c": 30, "avg_low_c": 24, "rain_days": 18, "description": "Wet season peak, heavy tropical rain" },
+        "february":  { "avg_high_c": 30, "avg_low_c": 24, "rain_days": 16, "description": "Wet season continues, lush green landscapes" },
+        "march":     { "avg_high_c": 31, "avg_low_c": 24, "rain_days": 14, "description": "Wet season tapering off, still humid" },
+        "april":     { "avg_high_c": 31, "avg_low_c": 24, "rain_days": 9,  "description": "Dry season begins, warm and sunny" },
+        "may":       { "avg_high_c": 31, "avg_low_c": 23, "rain_days": 6,  "description": "Dry season, perfect beach weather" },
+        "june":      { "avg_high_c": 30, "avg_low_c": 23, "rain_days": 5,  "description": "Dry and comfortable, peak tourist season" },
+        "july":      { "avg_high_c": 29, "avg_low_c": 22, "rain_days": 4,  "description": "Coolest and driest month, peak season" },
+        "august":    { "avg_high_c": 30, "avg_low_c": 22, "rain_days": 3,  "description": "Dry, sunny, ideal conditions" },
+        "september": { "avg_high_c": 30, "avg_low_c": 23, "rain_days": 5,  "description": "Dry season winding down, still great" },
+        "october":   { "avg_high_c": 31, "avg_low_c": 24, "rain_days": 9,  "description": "Transition to wet season, afternoon showers" },
+        "november":  { "avg_high_c": 31, "avg_low_c": 24, "rain_days": 13, "description": "Wet season begins, lower prices" },
+        "december":  { "avg_high_c": 30, "avg_low_c": 24, "rain_days": 16, "description": "Wet season, holiday crowds" }
+      },
+      "best_time_to_visit": "May to September",
+      "areas": [
+        {
+          "name": "Seminyak",
+          "description": "Upscale beach area with trendy restaurants, beach clubs, and boutiques.",
+          "vibe": "trendy, upscale, beachfront",
+          "distance_to_center_km": 0.0,
+          "avg_hotel_price_usd": 100
+        },
+        {
+          "name": "Ubud",
+          "description": "Cultural heart of Bali with rice terraces, yoga retreats, and art galleries.",
+          "vibe": "cultural, serene, spiritual",
+          "distance_to_center_km": 25.0,
+          "avg_hotel_price_usd": 70
+        },
+        {
+          "name": "Kuta",
+          "description": "Budget-friendly beach area popular with backpackers, busy nightlife.",
+          "vibe": "budget, nightlife, backpacker",
+          "distance_to_center_km": 2.0,
+          "avg_hotel_price_usd": 40
+        },
+        {
+          "name": "Canggu",
+          "description": "Surf town with digital nomads, co-working spaces, and laid-back cafes.",
+          "vibe": "surf, digital nomad, relaxed",
+          "distance_to_center_km": 8.0,
+          "avg_hotel_price_usd": 60
+        },
+        {
+          "name": "Nusa Dua",
+          "description": "Gated resort area with luxury hotels, calm beaches, and golf courses.",
+          "vibe": "luxury, resort, family-friendly",
+          "distance_to_center_km": 15.0,
+          "avg_hotel_price_usd": 150
+        }
+      ],
+      "average_costs_usd": {
+        "budget_hotel_per_night": 25,
+        "mid_hotel_per_night": 70,
+        "luxury_hotel_per_night": 200,
+        "budget_meal": 3,
+        "mid_meal": 10,
+        "fine_dining_meal": 40,
+        "metro_day_pass": 0,
+        "taxi_per_km": 0.5
+      },
+      "recommended_airlines_from": {
+        "cairo": ["Emirates", "Qatar Airways", "Singapore Airlines"],
+        "new_york": ["Singapore Airlines", "Cathay Pacific", "Qatar Airways"],
+        "london": ["Singapore Airlines", "Qatar Airways", "Emirates"],
+        "paris": ["Singapore Airlines", "Qatar Airways"],
+        "istanbul": ["Turkish Airlines", "Singapore Airlines"]
+      }
+    },
+    "istanbul": {
+      "city": "Istanbul",
+      "country": "Turkey",
+      "currency": "TRY",
+      "usd_exchange_rate": 32.5,
+      "timezone": "Europe/Istanbul",
+      "airport_code": "IST",
+      "weather_by_month": {
+        "january":   { "avg_high_c": 9,  "avg_low_c": 3,  "rain_days": 13, "description": "Cold and rainy, occasional snow" },
+        "february":  { "avg_high_c": 9,  "avg_low_c": 3,  "rain_days": 11, "description": "Cold, damp, quietest tourist month" },
+        "march":     { "avg_high_c": 12, "avg_low_c": 5,  "rain_days": 10, "description": "Spring arriving, tulip season begins" },
+        "april":     { "avg_high_c": 17, "avg_low_c": 9,  "rain_days": 9,  "description": "Istanbul Tulip Festival, mild and pleasant" },
+        "may":       { "avg_high_c": 22, "avg_low_c": 13, "rain_days": 7,  "description": "Warm, comfortable, great for sightseeing" },
+        "june":      { "avg_high_c": 27, "avg_low_c": 18, "rain_days": 5,  "description": "Hot, sunny, Bosphorus breezes help" },
+        "july":      { "avg_high_c": 29, "avg_low_c": 21, "rain_days": 3,  "description": "Hottest month, clear skies" },
+        "august":    { "avg_high_c": 29, "avg_low_c": 21, "rain_days": 3,  "description": "Hot and dry, busy tourist season" },
+        "september": { "avg_high_c": 26, "avg_low_c": 17, "rain_days": 5,  "description": "Warm, crowds thinning, excellent" },
+        "october":   { "avg_high_c": 20, "avg_low_c": 13, "rain_days": 9,  "description": "Mild autumn, beautiful light" },
+        "november":  { "avg_high_c": 14, "avg_low_c": 8,  "rain_days": 11, "description": "Cool, rainy season beginning" },
+        "december":  { "avg_high_c": 10, "avg_low_c": 5,  "rain_days": 13, "description": "Cold and wet, New Year festivities" }
+      },
+      "best_time_to_visit": "April to May and September to October",
+      "areas": [
+        {
+          "name": "Sultanahmet",
+          "description": "Historic peninsula with Hagia Sophia, Blue Mosque, and Topkapi Palace.",
+          "vibe": "historic, cultural, tourist-friendly",
+          "distance_to_center_km": 0.0,
+          "avg_hotel_price_usd": 100
+        },
+        {
+          "name": "Beyoglu",
+          "description": "Lively district with Istiklal Avenue, Galata Tower, rooftop bars, and art galleries.",
+          "vibe": "lively, modern, nightlife",
+          "distance_to_center_km": 2.0,
+          "avg_hotel_price_usd": 90
+        },
+        {
+          "name": "Kadikoy",
+          "description": "Asian side neighborhood with local food scene, markets, and authentic vibe.",
+          "vibe": "local, authentic, foodie",
+          "distance_to_center_km": 5.0,
+          "avg_hotel_price_usd": 60
+        },
+        {
+          "name": "Besiktas",
+          "description": "Vibrant waterfront area near Dolmabahce Palace with cafes and ferry access.",
+          "vibe": "waterfront, local, connected",
+          "distance_to_center_km": 3.0,
+          "avg_hotel_price_usd": 80
+        },
+        {
+          "name": "Taksim",
+          "description": "Central square and transit hub with hotels at every price point.",
+          "vibe": "central, convenient, diverse",
+          "distance_to_center_km": 1.5,
+          "avg_hotel_price_usd": 110
+        }
+      ],
+      "average_costs_usd": {
+        "budget_hotel_per_night": 40,
+        "mid_hotel_per_night": 90,
+        "luxury_hotel_per_night": 220,
+        "budget_meal": 5,
+        "mid_meal": 15,
+        "fine_dining_meal": 50,
+        "metro_day_pass": 3,
+        "taxi_per_km": 0.8
+      },
+      "recommended_airlines_from": {
+        "cairo": ["Turkish Airlines", "EgyptAir"],
+        "new_york": ["Turkish Airlines", "Delta"],
+        "london": ["Turkish Airlines", "British Airways"],
+        "paris": ["Turkish Airlines", "Air France"],
+        "tokyo": ["Turkish Airlines", "ANA"]
+      }
+    }
+  }
+}

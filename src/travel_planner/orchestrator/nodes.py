@@ -1,11 +1,21 @@
 """Orchestrator nodes -- single agentic loop with tool execution.
 
 The orchestrate node runs the orchestrator LLM with spawn_agent, load_skill,
-and booking tools.  The tool node executes all tool calls.  Together they
-form a standard ReAct loop: orchestrate -> tools -> orchestrate -> ... -> END.
+set_travel_state, and booking tools.  The tool node executes all tool calls.
+Together they form a standard ReAct loop:
+  orchestrate -> tools -> orchestrate -> ... -> END.
+
+Context engineering applied here:
+  - Structured state is injected as a <current_state> block every turn so the
+    LLM always has key facts without relying on conversation history retrieval.
+  - Old tool results are pruned: only the last 2 spawn_agent results are kept
+    in full; older ones are reduced to a one-line summary. set_travel_state
+    results are always replaced with "[state updated]" since the state is
+    captured in structured fields.
 """
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 
@@ -33,6 +43,7 @@ from travel_planner.session.entries import (
 )
 from travel_planner.skills.loader import load_skill
 from travel_planner.tools.booking import book_flight, book_hotel
+from travel_planner.tools.state_updater import set_travel_state
 
 # ---------------------------------------------------------------------------
 # Prompt loading
@@ -53,13 +64,144 @@ def _load_system_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Structured state helpers
+# ---------------------------------------------------------------------------
+
+_STATE_UPDATE_KEYS = (
+    "stage", "approved_plan", "approved_flight",
+    "approved_hotel", "rejection_constraints", "booking_refs",
+)
+
+
+def _find_tool_name_for_call(messages: list, tool_call_id: str) -> str:
+    """Return the tool name for a given tool_call_id by scanning AIMessages."""
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                if tc["id"] == tool_call_id:
+                    return tc["name"]
+    return "unknown"
+
+
+def _extract_state_updates(messages: list) -> dict:
+    """Scan messages for set_travel_state results and return state field updates.
+
+    The orchestrator node calls this at the start of each turn so that state
+    written by the previous tool loop is applied before the next LLM call.
+    """
+    updates: dict = {}
+    for msg in messages:
+        if not isinstance(msg, ToolMessage):
+            continue
+        tool_name = _find_tool_name_for_call(messages, msg.tool_call_id)
+        if tool_name != "set_travel_state":
+            continue
+        try:
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            result = json.loads(content)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+        if not result.get("__state_update__"):
+            continue
+        for key in _STATE_UPDATE_KEYS:
+            if key not in result:
+                continue
+            updates[key] = result[key]
+    return updates
+
+
+def _format_state_context(state: dict) -> str:
+    """Render the current structured state as a <current_state> block.
+
+    Injected into every LLM call so the orchestrator always has key facts
+    without needing to re-derive them from conversation history.
+    """
+    stage = state.get("stage") or 1
+    stage_labels = {1: "Stage 1 — Planning", 2: "Stage 2 — Selection", 3: "Stage 3 — Booking"}
+    label = stage_labels.get(stage, f"Stage {stage}")
+
+    approved_plan = state.get("approved_plan")
+    approved_flight = state.get("approved_flight")
+    approved_hotel = state.get("approved_hotel")
+    rejection_constraints = state.get("rejection_constraints") or {}
+    booking_refs = state.get("booking_refs")
+
+    lines = [
+        "<current_state>",
+        f"stage: {label}",
+        f"approved_plan: {json.dumps(approved_plan) if approved_plan else 'none'}",
+        f"approved_flight: {json.dumps(approved_flight) if approved_flight else 'none'}",
+        f"approved_hotel: {json.dumps(approved_hotel) if approved_hotel else 'none'}",
+        f"rejection_constraints: {json.dumps(rejection_constraints) if rejection_constraints else 'none'}",
+        f"booking_refs: {json.dumps(booking_refs) if booking_refs else 'none'}",
+        "</current_state>",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Tool result pruning
+# ---------------------------------------------------------------------------
+
+def _prune_tool_results(messages: list, keep_recent: int = 2) -> list:
+    """Reduce context size by summarising old tool results.
+
+    Rules:
+    - set_travel_state results: always replaced with "[state updated]" — the
+      state is captured in structured fields, not in the message list.
+    - spawn_agent / other tool results: keep the last `keep_recent` in full;
+      replace older ones with a one-line summary of the first 200 chars.
+
+    The AIMessages containing the tool_calls are left untouched so the LLM
+    can still see what it called and why.
+    """
+    # Collect (index, tool_name) for all ToolMessages
+    tool_msg_meta: list[tuple[int, str]] = []
+    for i, msg in enumerate(messages):
+        if isinstance(msg, ToolMessage):
+            name = _find_tool_name_for_call(messages, msg.tool_call_id)
+            tool_msg_meta.append((i, name))
+
+    # Always summarise set_travel_state results
+    always_summarise = {i for i, name in tool_msg_meta if name == "set_travel_state"}
+
+    # Keep only the last `keep_recent` non-state tool results in full
+    agent_results = [(i, name) for i, name in tool_msg_meta if name != "set_travel_state"]
+    old_agent = {i for i, _ in agent_results[:-keep_recent]} if len(agent_results) > keep_recent else set()
+
+    to_summarise = always_summarise | old_agent
+
+    pruned: list = []
+    for i, msg in enumerate(messages):
+        if i not in to_summarise or not isinstance(msg, ToolMessage):
+            pruned.append(msg)
+            continue
+
+        tool_name = _find_tool_name_for_call(messages, msg.tool_call_id)
+        if tool_name == "set_travel_state":
+            replacement = "[state updated]"
+        else:
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            first_line = content.split("\n")[0][:200]
+            replacement = f"[summarised] {first_line}" + (" …" if len(content) > 200 or "\n" in content else "")
+
+        pruned.append(ToolMessage(
+            content=replacement,
+            tool_call_id=msg.tool_call_id,
+            name=getattr(msg, "name", None),
+        ))
+
+    return pruned
+
+
+# ---------------------------------------------------------------------------
 # Orchestrate node
 # ---------------------------------------------------------------------------
 
 from travel_planner.models import get_main_model
 
 _model = get_main_model()
-_tools = [spawn_agent, load_skill, book_flight, book_hotel]
+_tools = [spawn_agent, load_skill, set_travel_state, book_flight, book_hotel]
 _model_with_tools = _model.bind_tools(_tools)
 
 
@@ -127,11 +269,7 @@ async def _persist_response(session_dir: Path, response: AIMessage) -> None:
 
 
 def _sync_session_file(session_dir: Path, state: dict) -> None:
-    """Sync session.json with current progress.
-
-    Called after each orchestrate iteration so the session file reflects
-    the latest state on disk.
-    """
+    """Sync session.json with current progress."""
     from datetime import datetime, timezone
 
     meta = load_session_meta(session_dir)
@@ -142,20 +280,31 @@ def _sync_session_file(session_dir: Path, state: dict) -> None:
     meta["last_snapshot_entry_count"] = state.get("last_snapshot_entry_count")
     meta["last_snapshot_message_count"] = state.get("last_snapshot_message_count")
     meta["conversation_entries"] = len(conversation)
+    # Persist structured state to session.json for inspection / resumption
+    meta["stage"] = state.get("stage") or 1
+    meta["approved_plan"] = state.get("approved_plan")
+    meta["approved_flight"] = state.get("approved_flight")
+    meta["approved_hotel"] = state.get("approved_hotel")
+    meta["rejection_constraints"] = state.get("rejection_constraints") or {}
+    meta["booking_refs"] = state.get("booking_refs")
 
     save_session_meta(session_dir, meta)
 
 
 async def orchestrate_node(state: dict) -> dict:
-    """Main orchestrator node: check compaction, call LLM, return response.
+    """Main orchestrator node: apply state updates, prune context, call LLM.
 
     On first invocation (no session_id), creates a new session.
-    Before each LLM call, checks context pressure and compacts if needed.
+    Before each LLM call:
+      1. Extracts any set_travel_state updates from the last tool loop.
+      2. Checks context pressure and compacts if needed.
+      3. Injects structured state as a <current_state> block.
+      4. Prunes old tool results to reduce token usage.
     Persists all messages to conversation.json.
     """
     updates: dict = {}
 
-    # Create session on first invocation (file I/O — run in thread)
+    # Create session on first invocation
     session_id = state.get("session_id")
     if not session_id:
         session_id = await asyncio.to_thread(create_session)
@@ -166,9 +315,19 @@ async def orchestrate_node(state: dict) -> dict:
     # Persist incoming messages (user message or tool results)
     await _persist_incoming(session_dir, state.get("messages", []))
 
+    # Apply structured state updates from set_travel_state tool results
+    state_field_updates = _extract_state_updates(state.get("messages", []))
+    if state_field_updates:
+        logger.info("Structured state updated: %s", list(state_field_updates.keys()))
+        updates.update(state_field_updates)
+
+    # Merge updates into a working copy for the rest of this turn
+    working_state = {**state, **updates}
+
     # Check for /compact command or context pressure
     msgs = state.get("messages", [])
     last_msg = msgs[-1] if msgs else None
+
     def _is_compact_command(msg) -> bool:
         if not isinstance(msg, HumanMessage):
             return False
@@ -183,54 +342,57 @@ async def orchestrate_node(state: dict) -> dict:
     force_compact = _is_compact_command(last_msg)
     if force_compact:
         logger.info("User triggered /compact command")
-    compact_update = await maybe_compact(state, session_dir, force=force_compact)
+    compact_update = await maybe_compact(working_state, session_dir, force=force_compact)
     if compact_update:
         logger.info("Compaction applied: %s", compact_update)
-        # Record how many LangGraph messages existed at compaction time so we
-        # can slice off pre-snapshot messages on subsequent calls.
         compact_update["last_snapshot_message_count"] = len(msgs)
         updates.update(compact_update)
+        working_state = {**working_state, **compact_update}
 
     if force_compact:
-        from langchain_core.messages import AIMessage
         updates["messages"] = [AIMessage(content="Context compacted.")]
-        merged_state = {**state, **updates}
-        await asyncio.to_thread(_sync_session_file, session_dir, merged_state)
+        await asyncio.to_thread(_sync_session_file, session_dir, {**working_state, **updates})
         return updates
 
-    # Build messages with system prompt (file I/O on first call — run in thread)
+    # Build messages for the LLM call
     system_prompt = await asyncio.to_thread(_load_system_prompt)
+    state_context = _format_state_context(working_state)
 
-    last_snapshot_id = state.get("last_snapshot_id") or updates.get("last_snapshot_id")
+    last_snapshot_id = working_state.get("last_snapshot_id")
     if last_snapshot_id:
-        # Load snapshot and only send messages added after compaction
         snapshot_content = await asyncio.to_thread(load_snapshot, session_dir, last_snapshot_id)
-        msg_count = state.get("last_snapshot_message_count") or updates.get("last_snapshot_message_count") or 0
+        msg_count = working_state.get("last_snapshot_message_count") or 0
         recent_messages = list(state.get("messages", []))[msg_count:]
         logger.info(
             "Using snapshot #%d + %d recent messages (total state messages: %d)",
             last_snapshot_id, len(recent_messages), len(state.get("messages", [])),
         )
+        recent_messages = _prune_tool_results(recent_messages)
         messages = (
             [SystemMessage(content=system_prompt)]
+            + [SystemMessage(content=state_context)]
             + [HumanMessage(content=f"## Prior Conversation Summary\n\n{snapshot_content}")]
             + recent_messages
         )
     else:
-        messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
+        all_messages = _prune_tool_results(list(state.get("messages", [])))
+        messages = (
+            [SystemMessage(content=system_prompt)]
+            + [SystemMessage(content=state_context)]
+            + all_messages
+        )
 
-    # Call orchestrator LLM (tag with session_id for LangSmith)
+    # Call orchestrator LLM
     response = await _model_with_tools.ainvoke(
         messages,
         config={"metadata": {"session_id": session_id}},
     )
 
-    # Persist the AI response (text + tool calls)
+    # Persist the AI response
     await _persist_response(session_dir, response)
 
-    # Sync session.json with current progress
-    merged_state = {**state, **updates}
-    await asyncio.to_thread(_sync_session_file, session_dir, merged_state)
+    # Sync session.json
+    await asyncio.to_thread(_sync_session_file, session_dir, working_state)
 
     updates["messages"] = [response]
     return updates

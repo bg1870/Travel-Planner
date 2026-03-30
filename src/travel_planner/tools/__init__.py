@@ -15,6 +15,7 @@ from travel_planner.tools.search import (
     search_hotels,
     web_search,
 )
+from travel_planner.tools.state_updater import set_travel_state
 
 TOOL_REGISTRY: dict[str, BaseTool] = {
     "web_search": web_search,
@@ -26,6 +27,7 @@ TOOL_REGISTRY: dict[str, BaseTool] = {
     "book_flight": book_flight,
     "book_hotel": book_hotel,
     "budget_calculator": budget_calculator,
+    "set_travel_state": set_travel_state,
 }
 
 __all__ = [
@@ -39,4 +41,5 @@ __all__ = [
     "book_flight",
     "book_hotel",
     "budget_calculator",
+    "set_travel_state",
 ]

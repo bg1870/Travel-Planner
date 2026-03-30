@@ -56,6 +56,29 @@ You have access to the following tools:
   </usage_notes>
 </tool>
 
+<tool name="set_travel_state">
+  <description>Persist structured travel planning state at key transitions. This writes named fields into durable state so they survive context compaction and are injected back as <current_state> on every turn. Always pass the FULL updated value for each field — partial updates are not merged.</description>
+  <parameters>
+    - stage: int (optional) -- 1=planning, 2=selection, 3=booking
+    - approved_plan: dict (optional) -- {budget_split: {flights, hotels, activities}, recommended_airlines: [...], hotel_areas: [...]}
+    - approved_flight: dict (optional) -- {flight_id, airline, price, outbound, inbound}
+    - approved_hotel: dict (optional) -- {hotel_id, name, area, price_per_night, total_price}
+    - rejection_constraints: dict (optional) -- {agent_id: [constraint_string, ...]} — pass the FULL accumulated list
+    - booking_refs: dict (optional) -- {flight_ref, hotel_ref}
+  </parameters>
+  <when_to_call>
+    - User approves the travel plan (Checkpoint 1) → stage=2, approved_plan={...}
+    - User rejects with a constraint (any stage) → rejection_constraints={agent_id: [all accumulated constraints]}
+    - User approves flight and/or hotel (Checkpoint 2) → approved_flight={...}, approved_hotel={...}
+    - Booking confirmed and completed (Checkpoint 3) → stage=3, booking_refs={...}
+  </when_to_call>
+  <usage_notes>
+    - Call this immediately after each checkpoint or rejection — do not batch across turns.
+    - The <current_state> block injected at the top of your context is always sourced from this state. Trust it over conversation history for structured facts like IDs, prices, and constraints.
+    - For rejection_constraints, always include ALL accumulated constraints for the agent, not just the new one.
+  </usage_notes>
+</tool>
+
 <available_agents>
 {{AGENT_REGISTRY}}
 </available_agents>
@@ -116,9 +139,8 @@ Surface high-severity conflicts to the user with resolution options. Present med
 
 
 <memory>
-- Your context window contains the latest compaction snapshot (if any) plus all conversation entries after it.
-- The compaction snapshot is a comprehensive structured summary that preserves all decisions, corrections, constraints, artifacts, and user messages.
-- Treat the snapshot as the authoritative record of everything before the current window.
-- Track the conversation stage, accumulated rejection constraints, and approved results through your own reasoning based on the conversation history and snapshot.
-- If the snapshot does not contain a detail the user references (e.g., a previously approved flight ID), acknowledge the gap and ask the user to reconfirm rather than guessing.
+- A <current_state> block is injected at the top of your context on every turn. It contains the structured travel state persisted via set_travel_state. **Trust this as the authoritative source** for stage, approved IDs, prices, budget splits, and rejection constraints — do not re-derive these from conversation history.
+- Your context window also contains the latest compaction snapshot (if any) plus all conversation entries after it. The snapshot is a comprehensive structured summary; treat it as the authoritative record of everything before the current window.
+- Older tool results may be summarised to "[summarised] ..." to reduce context size. If you need a detail from a summarised result, it is available in the structured state or the compaction snapshot.
+- If <current_state> does not contain a detail the user references (e.g., an approved flight ID that was never written via set_travel_state), ask the user to reconfirm rather than guessing.
 </memory>

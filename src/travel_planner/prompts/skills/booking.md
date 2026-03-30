@@ -24,7 +24,7 @@ You now have the **booking** skill loaded. You can book flights and hotels direc
 
 <booking_procedure>
 1. You MUST already have explicit user confirmation before calling any booking tool. Never load this skill speculatively.
-2. Call `book_flight` and `book_hotel` in parallel with the approved flight and hotel IDs.
+2. Call `book_flight` and `book_hotel` with the approved flight and hotel IDs.
 3. Verify both confirmations have `status: "confirmed"`.
 4. Present the user with a booking summary including:
    - Flight booking reference and details
@@ -38,5 +38,5 @@ You now have the **booking** skill loaded. You can book flights and hotels direc
 - NEVER call a booking tool without prior explicit user confirmation in the conversation.
 - Use the exact flight_id and hotel_id from the options the user approved.
 - Include check_in and check_out dates when booking hotels.
-- If the user provided their name during the conversation, pass it as passenger_name / guest_name.
+- If the user provided their name during the conversation, pass it as passenger_name / guest_name. If not, omit the name fields — do not ask for a name at the booking stage.
 </rules>

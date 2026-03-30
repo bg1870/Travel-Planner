@@ -17,6 +17,7 @@ Context engineering applied here:
 import asyncio
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -49,18 +50,24 @@ from travel_planner.tools.state_updater import set_travel_state
 # Prompt loading
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT: str | None = None
+_ORCHESTRATOR_PROMPT_BASE: str | None = None
 
 
-def _load_system_prompt() -> str:
-    """Load orchestrator system prompt and inject the agent registry."""
-    global _SYSTEM_PROMPT
-    if _SYSTEM_PROMPT is None:
+def _orchestrator_prompt_base() -> str:
+    """Load orchestrator template once and inject the static agent registry."""
+    global _ORCHESTRATOR_PROMPT_BASE
+    if _ORCHESTRATOR_PROMPT_BASE is None:
         prompt_path = Path(__file__).parent.parent / "prompts" / "orchestrator.system.md"
         raw = prompt_path.read_text()
         registry_summary = get_registry_summary()
-        _SYSTEM_PROMPT = raw.replace("{{AGENT_REGISTRY}}", registry_summary)
-    return _SYSTEM_PROMPT
+        _ORCHESTRATOR_PROMPT_BASE = raw.replace("{{AGENT_REGISTRY}}", registry_summary)
+    return _ORCHESTRATOR_PROMPT_BASE
+
+
+def _load_system_prompt() -> str:
+    """Build orchestrator system prompt with fresh current time each turn."""
+    now_str = datetime.now().astimezone().strftime("%c")
+    return _orchestrator_prompt_base().replace("{{CURRENT_DATETIME}}", now_str)
 
 
 # ---------------------------------------------------------------------------

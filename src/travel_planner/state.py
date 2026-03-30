@@ -1,8 +1,8 @@
 """TravelPlannerState -- the LangGraph runtime state schema.
 
-Simplified to 4 fields. The orchestrator LLM tracks conversation stage,
-rejection constraints, and approved results through its own reasoning
-based on the conversation history and compaction snapshots.
+The orchestrator LLM tracks conversation stage, rejection constraints,
+and approved results both through structured state fields (for reliability
+across context boundaries) and through conversation history reasoning.
 """
 
 from typing import Annotated, Optional
@@ -26,3 +26,29 @@ class TravelPlannerState(TypedDict):
     # Number of LangGraph state messages at the time of last compaction.
     # Messages at index >= this are "post-snapshot" and sent to the LLM directly.
     last_snapshot_message_count: Optional[int]
+
+    # --- Structured travel state (updated via set_travel_state tool) ---
+
+    # Current pipeline stage: 1=planning, 2=selection, 3=booking (None treated as 1)
+    stage: Optional[int]
+
+    # Approved output from trip_advisor at Checkpoint 1.
+    # Expected keys: budget_split (flights/hotels/activities), recommended_airlines,
+    # hotel_areas, destination_overview.
+    approved_plan: Optional[dict]
+
+    # Approved flight at Checkpoint 2.
+    # Expected keys: flight_id, airline, price, outbound, inbound.
+    approved_flight: Optional[dict]
+
+    # Approved hotel at Checkpoint 2.
+    # Expected keys: hotel_id, name, area, price_per_night, total_price.
+    approved_hotel: Optional[dict]
+
+    # Accumulated rejection constraints per agent.
+    # Format: {"flight_agent": ["no budget airlines", ...], "hotel_agent": [...]}
+    rejection_constraints: Optional[dict]
+
+    # Final booking reference numbers set at Checkpoint 3.
+    # Expected keys: flight_ref, hotel_ref.
+    booking_refs: Optional[dict]

@@ -108,7 +108,7 @@ Then write all 9 sections as numbered headers (`## 1. Primary Request and Intent
 - List **every user message** chronologically as short quoted summaries.
 - These show the evolution of the user's thinking and priorities.
 - Include enough context that the continuing agent can understand what each message was responding to.
-- **Do NOT skip messages** — even short confirmations ("ok", "yes", "let's move on") signal approval of prior work. Gaps create ambiguity about what was actually approved.
+- **Do NOT skip substantive messages.** For trivial confirmations ("ok", "yes", "let's move on"), log them as `[User approved]` or `[User confirmed]` with a note on what was approved. This preserves the approval chain without wasting tokens.
 
 ### 6. Resolved Questions
 - List questions, problems, or open issues that were **explicitly raised and resolved**.
@@ -132,6 +132,20 @@ Then write all 9 sections as numbered headers (`## 1. Primary Request and Intent
 - Based on the conversation trajectory, what would **logically come next**?
 - Note that the user has **NOT explicitly requested these** — they are inferences.
 - Include any context the continuing agent might need to propose or begin the next step.
+
+### 10. Domain-Specific State
+If the conversation involves a structured workflow with trackable artifacts (e.g., travel planning, project management, order processing), include a structured state block preserving key identifiers and values:
+
+```
+- Approved flight: [flight_id] at $[price] (or "not yet selected")
+- Approved hotel: [hotel_id] at $[price/night] (or "not yet selected")
+- Budget split: flights $[X] / hotels $[X] / activities $[X]
+- Rejection constraints: [agent_id]: [list of constraints]
+- Current stage: [1 / 2 / 3]
+- Booking references: [ref numbers if any]
+```
+
+Adapt the fields to the domain. The goal is to preserve structured state that would be lost or buried if captured only as prose.
 
 End with:
 

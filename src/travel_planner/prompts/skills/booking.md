@@ -24,7 +24,7 @@ You now have the **booking** skill loaded. You can book flights and hotels direc
 
 <booking_procedure>
 1. You MUST already have explicit user confirmation before calling any booking tool. Never load this skill speculatively.
-2. Call `book_flight` and `book_hotel` with the approved flight and hotel IDs.
+2. Call `book_flight` and `book_hotel` in the **same response** (two tool calls in one turn) so they execute in parallel.
 3. Verify both confirmations have `status: "confirmed"`.
 4. Present the user with a booking summary including:
    - Flight booking reference and details

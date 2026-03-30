@@ -149,47 +149,74 @@ def _prune_tool_results(messages: list, keep_recent: int = 2) -> list:
     Rules:
     - set_travel_state results: always replaced with "[state updated]" — the
       state is captured in structured fields, not in the message list.
-    - spawn_agent / other tool results: keep the last `keep_recent` in full;
-      replace older ones with a one-line summary of the first 200 chars.
+    - All other tool results are grouped by their parent AIMessage turn.
+      Parallel calls (e.g. flight_agent + hotel_agent in one response) count
+      as a single turn and are kept or summarised together.
+      The last `keep_recent` turns are kept in full; older turns are summarised.
 
     The AIMessages containing the tool_calls are left untouched so the LLM
     can still see what it called and why.
     """
-    # Collect (index, tool_name) for all ToolMessages
-    tool_msg_meta: list[tuple[int, str]] = []
+    # Build a map: tool_call_id -> parent AIMessage index
+    call_id_to_ai_idx: dict[str, int] = {}
     for i, msg in enumerate(messages):
-        if isinstance(msg, ToolMessage):
-            name = _find_tool_name_for_call(messages, msg.tool_call_id)
-            tool_msg_meta.append((i, name))
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                call_id_to_ai_idx[tc["id"]] = i
 
-    # Always summarise set_travel_state results
-    always_summarise = {i for i, name in tool_msg_meta if name == "set_travel_state"}
+    # Group non-state ToolMessage indices by their parent AIMessage index (= one "turn")
+    # Ordered by first appearance of each parent.
+    turn_order: list[int] = []          # AI message indices in order of first appearance
+    turn_to_tool_indices: dict[int, list[int]] = {}  # ai_idx -> [tool_msg_indices]
 
-    # Keep only the last `keep_recent` non-state tool results in full
-    agent_results = [(i, name) for i, name in tool_msg_meta if name != "set_travel_state"]
-    old_agent = {i for i, _ in agent_results[:-keep_recent]} if len(agent_results) > keep_recent else set()
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, ToolMessage):
+            continue
+        tool_name = _find_tool_name_for_call(messages, msg.tool_call_id)
+        if tool_name == "set_travel_state":
+            continue  # handled separately below
+        ai_idx = call_id_to_ai_idx.get(msg.tool_call_id, -1)
+        if ai_idx not in turn_to_tool_indices:
+            turn_to_tool_indices[ai_idx] = []
+            turn_order.append(ai_idx)
+        turn_to_tool_indices[ai_idx].append(i)
 
-    to_summarise = always_summarise | old_agent
+    # Indices that belong to the last `keep_recent` turns — keep in full
+    recent_turns = set(turn_order[-keep_recent:]) if turn_order else set()
+    keep_full: set[int] = set()
+    for ai_idx in recent_turns:
+        keep_full.update(turn_to_tool_indices[ai_idx])
+
+    # Collect all ToolMessage indices to check against
+    all_tool_indices: set[int] = {
+        idx for indices in turn_to_tool_indices.values() for idx in indices
+    }
 
     pruned: list = []
     for i, msg in enumerate(messages):
-        if i not in to_summarise or not isinstance(msg, ToolMessage):
+        if not isinstance(msg, ToolMessage):
             pruned.append(msg)
             continue
 
         tool_name = _find_tool_name_for_call(messages, msg.tool_call_id)
+
         if tool_name == "set_travel_state":
-            replacement = "[state updated]"
-        else:
+            pruned.append(ToolMessage(
+                content="[state updated]",
+                tool_call_id=msg.tool_call_id,
+                name=getattr(msg, "name", None),
+            ))
+        elif i in all_tool_indices and i not in keep_full:
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             first_line = content.split("\n")[0][:200]
             replacement = f"[summarised] {first_line}" + (" …" if len(content) > 200 or "\n" in content else "")
-
-        pruned.append(ToolMessage(
-            content=replacement,
-            tool_call_id=msg.tool_call_id,
-            name=getattr(msg, "name", None),
-        ))
+            pruned.append(ToolMessage(
+                content=replacement,
+                tool_call_id=msg.tool_call_id,
+                name=getattr(msg, "name", None),
+            ))
+        else:
+            pruned.append(msg)
 
     return pruned
 

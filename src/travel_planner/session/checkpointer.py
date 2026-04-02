@@ -85,9 +85,7 @@ class SessionCheckpointer(BaseCheckpointSaver):
             return []
 
     def _clear_pending_writes(self, config: dict) -> None:
-        path = self._pending_writes_path(config)
-        if path.exists():
-            path.unlink()
+        self._pending_writes_path(config).unlink(missing_ok=True)
 
     # -- BaseCheckpointSaver interface ---------------------------------------
 

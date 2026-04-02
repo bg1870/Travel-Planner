@@ -43,13 +43,19 @@ _OVERHEAD_TOKENS = 1_800
 # ---------------------------------------------------------------------------
 
 _TOKENIZER = None
+_TOKENIZER_CHECKED = False
 
 
 def _get_tokenizer():
-    """Return a tiktoken encoder, or None if tiktoken is not installed."""
-    global _TOKENIZER
-    if _TOKENIZER is not None:
+    """Return a tiktoken encoder, or None if tiktoken is not installed.
+
+    Uses a separate _TOKENIZER_CHECKED flag so None unambiguously means
+    "unavailable" rather than "not yet tried".
+    """
+    global _TOKENIZER, _TOKENIZER_CHECKED
+    if _TOKENIZER_CHECKED:
         return _TOKENIZER
+    _TOKENIZER_CHECKED = True
     try:
         import tiktoken
         # cl100k_base is used by GPT-4 and is a close approximation for
@@ -57,14 +63,15 @@ def _get_tokenizer():
         # especially for JSON-heavy tool results.
         _TOKENIZER = tiktoken.get_encoding("cl100k_base")
     except Exception:
-        _TOKENIZER = False  # sentinel: unavailable, use fallback
+        _TOKENIZER = None  # unavailable — fallback to chars / 4
     return _TOKENIZER
 
 
-def _count_tokens(text: str) -> int:
+def _count_tokens(text: str, enc=None) -> int:
     """Count tokens in a string using tiktoken, falling back to chars / 4."""
-    enc = _get_tokenizer()
-    if enc:
+    if enc is None:
+        enc = _get_tokenizer()
+    if enc is not None:
         return len(enc.encode(text, disallowed_special=()))
     return len(text) // 4
 
@@ -98,21 +105,22 @@ def estimate_token_usage(messages: list[BaseMessage]) -> int:
     added for accuracy on short conversations.
     """
     token_count = _OVERHEAD_TOKENS
+    enc = _get_tokenizer()  # resolve once; avoids repeated global lookup per content block
     for msg in messages:
         # Per-message role/formatting overhead
         token_count += 4
         content = msg.content
         if isinstance(content, str):
-            token_count += _count_tokens(content)
+            token_count += _count_tokens(content, enc)
         elif isinstance(content, list):
             # Content blocks (e.g. tool result lists, multimodal)
             for block in content:
                 if isinstance(block, dict):
-                    token_count += _count_tokens(block.get("text", str(block)))
+                    token_count += _count_tokens(block.get("text", str(block)), enc)
                 else:
-                    token_count += _count_tokens(str(block))
+                    token_count += _count_tokens(str(block), enc)
         else:
-            token_count += _count_tokens(str(content))
+            token_count += _count_tokens(str(content), enc)
     return token_count
 
 

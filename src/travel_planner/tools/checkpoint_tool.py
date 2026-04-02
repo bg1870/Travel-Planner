@@ -5,6 +5,10 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
+# Shared key used in both this tool and orchestrate_node to identify checkpoint
+# payloads.  Defined once here and imported wherever needed.
+CHECKPOINT_REQUEST_KEY = "__checkpoint_request__"
+
 
 @tool
 def request_checkpoint(content: str, next_stage: Optional[int] = None) -> str:
@@ -37,7 +41,7 @@ def request_checkpoint(content: str, next_stage: Optional[int] = None) -> str:
         JSON confirmation consumed by orchestrate_node to set pending_checkpoint.
     """
     return json.dumps({
-        "__checkpoint_request__": True,
+        CHECKPOINT_REQUEST_KEY: True,
         "content": content,
         "next_stage": next_stage,
     })

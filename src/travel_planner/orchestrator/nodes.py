@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END
 from langgraph.prebuilt import ToolNode
+from langgraph.types import Command, interrupt
 
 from travel_planner.agents.registry import get_registry_summary
 from travel_planner.agents.runner import spawn_agent
@@ -48,7 +49,7 @@ from travel_planner.session.entries import (
 )
 from travel_planner.skills.loader import load_skill
 from travel_planner.tools.booking import book_flight, book_hotel
-from travel_planner.tools.checkpoint_tool import request_checkpoint
+from travel_planner.tools.checkpoint_tool import CHECKPOINT_REQUEST_KEY, request_checkpoint
 from travel_planner.tools.state_updater import set_travel_state
 
 # ---------------------------------------------------------------------------
@@ -82,15 +83,6 @@ def _load_system_prompt() -> str:
 # Anthropic prompt caching helpers
 # ---------------------------------------------------------------------------
 
-def _is_anthropic_provider() -> bool:
-    """Return True when the main model uses Anthropic's API."""
-    try:
-        from langchain_anthropic import ChatAnthropic
-        return isinstance(_model, ChatAnthropic)
-    except ImportError:
-        return False
-
-
 def _cached_text(text: str) -> list[dict]:
     """Wrap a text string in an Anthropic cache_control content block.
 
@@ -104,7 +96,7 @@ def _cached_text(text: str) -> list[dict]:
 
 def _system_message(text: str) -> SystemMessage:
     """Build a SystemMessage, cached if the provider supports it."""
-    if _is_anthropic_provider():
+    if _IS_ANTHROPIC:
         return SystemMessage(content=_cached_text(text))
     return SystemMessage(content=text)
 
@@ -115,7 +107,7 @@ def _snapshot_message(text: str) -> HumanMessage:
     Snapshots change only on compaction events (every ~30% of the context
     window), so the cache stays warm for many turns between recompactions.
     """
-    if _is_anthropic_provider():
+    if _IS_ANTHROPIC:
         return HumanMessage(content=_cached_text(text))
     return HumanMessage(content=text)
 
@@ -155,7 +147,7 @@ def _extract_checkpoint_request(messages: list) -> dict | None:
         try:
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             result = json.loads(content)
-            if result.get("__checkpoint_request__"):
+            if result.get(CHECKPOINT_REQUEST_KEY):
                 return {
                     "content": result.get("content", ""),
                     "next_stage": result.get("next_stage"),
@@ -348,6 +340,14 @@ def _log_token_usage(response: AIMessage) -> None:
 from travel_planner.models import get_main_model
 
 _model = get_main_model()
+
+# Cache provider check once — _model never changes after module load.
+try:
+    from langchain_anthropic import ChatAnthropic as _ChatAnthropic
+    _IS_ANTHROPIC: bool = isinstance(_model, _ChatAnthropic)
+except ImportError:
+    _IS_ANTHROPIC = False
+
 _tools = [spawn_agent, load_skill, set_travel_state, request_checkpoint, book_flight, book_hotel]
 _model_with_tools = _model.bind_tools(_tools)
 
@@ -591,8 +591,6 @@ def checkpoint_node(state: dict):
 
     Saves one Sonnet call per checkpoint on the happy path.
     """
-    from langgraph.types import interrupt, Command
-
     checkpoint_data = state.get("pending_checkpoint") or {}
     content = checkpoint_data.get("content", "")
     next_stage = checkpoint_data.get("next_stage")

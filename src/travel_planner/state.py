@@ -52,3 +52,9 @@ class TravelPlannerState(TypedDict):
     # Final booking reference numbers set at Checkpoint 3.
     # Expected keys: flight_ref, hotel_ref.
     booking_refs: Optional[dict]
+
+    # Pending checkpoint waiting for user approval.
+    # Set by orchestrate_node when request_checkpoint tool result is detected.
+    # Cleared by checkpoint_node after interrupt() returns.
+    # Expected keys: content (str to show user), next_stage (Optional[int]).
+    pending_checkpoint: Optional[dict]

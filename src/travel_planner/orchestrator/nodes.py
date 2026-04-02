@@ -48,6 +48,7 @@ from travel_planner.session.entries import (
 )
 from travel_planner.skills.loader import load_skill
 from travel_planner.tools.booking import book_flight, book_hotel
+from travel_planner.tools.checkpoint_tool import request_checkpoint
 from travel_planner.tools.state_updater import set_travel_state
 
 # ---------------------------------------------------------------------------
@@ -137,6 +138,31 @@ def _find_tool_name_for_call(messages: list, tool_call_id: str) -> str:
                 if tc["id"] == tool_call_id:
                     return tc["name"]
     return "unknown"
+
+
+def _extract_checkpoint_request(messages: list) -> dict | None:
+    """Scan messages for a request_checkpoint tool result.
+
+    Returns the checkpoint payload dict if found, None otherwise.
+    Only the most recent request_checkpoint result is returned — earlier
+    ones are assumed to have already been processed.
+    """
+    for msg in reversed(messages):
+        if not isinstance(msg, ToolMessage):
+            continue
+        if _find_tool_name_for_call(messages, msg.tool_call_id) != "request_checkpoint":
+            continue
+        try:
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            result = json.loads(content)
+            if result.get("__checkpoint_request__"):
+                return {
+                    "content": result.get("content", ""),
+                    "next_stage": result.get("next_stage"),
+                }
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    return None
 
 
 def _extract_state_updates(messages: list) -> dict:
@@ -322,7 +348,7 @@ def _log_token_usage(response: AIMessage) -> None:
 from travel_planner.models import get_main_model
 
 _model = get_main_model()
-_tools = [spawn_agent, load_skill, set_travel_state, book_flight, book_hotel]
+_tools = [spawn_agent, load_skill, set_travel_state, request_checkpoint, book_flight, book_hotel]
 _model_with_tools = _model.bind_tools(_tools)
 
 
@@ -442,6 +468,19 @@ async def orchestrate_node(state: dict) -> dict:
         logger.info("Structured state updated: %s", list(state_field_updates.keys()))
         updates.update(state_field_updates)
 
+    # Short-circuit: if the last tool loop included a request_checkpoint call,
+    # store the pending checkpoint and return immediately — no LLM call needed.
+    # should_continue() will route to checkpoint_node which runs interrupt().
+    checkpoint_request = _extract_checkpoint_request(state.get("messages", []))
+    if checkpoint_request:
+        logger.info(
+            "Checkpoint request detected — skipping LLM call, routing to checkpoint_node "
+            "(next_stage=%s)", checkpoint_request.get("next_stage"),
+        )
+        updates["pending_checkpoint"] = checkpoint_request
+        await asyncio.to_thread(_sync_session_file, session_dir, {**state, **updates})
+        return updates
+
     # Merge updates into a working copy for the rest of this turn
     working_state = {**state, **updates}
 
@@ -532,9 +571,74 @@ async def orchestrate_node(state: dict) -> dict:
 
 tool_node = ToolNode(_tools)
 
+# Phrases the checkpoint_node treats as a simple approval — no orchestrator
+# LLM call needed; the stage is advanced deterministically.
+_APPROVAL_PHRASES = frozenset({
+    "yes", "y", "ok", "okay", "sure", "good", "great", "fine",
+    "approved", "approve", "confirm", "confirmed", "proceed",
+    "go ahead", "go", "looks good", "perfect", "sounds good",
+    "absolutely", "definitely", "correct", "right", "agreed",
+})
+
+
+def checkpoint_node(state: dict):
+    """Pause for human approval using LangGraph interrupt().
+
+    Presents the pending_checkpoint content to the user and waits for their
+    response. On simple approval phrases the stage is advanced deterministically
+    (no orchestrator LLM call). On rejections or complex responses control
+    returns to orchestrate_node for reasoning.
+
+    Saves one Sonnet call per checkpoint on the happy path.
+    """
+    from langgraph.types import interrupt, Command
+
+    checkpoint_data = state.get("pending_checkpoint") or {}
+    content = checkpoint_data.get("content", "")
+    next_stage = checkpoint_data.get("next_stage")
+
+    # Pause execution and surface content to the user.
+    user_response: str = interrupt(content)
+
+    normalised = user_response.strip().lower()
+    is_simple_approval = (
+        normalised in _APPROVAL_PHRASES
+        or normalised.startswith("yes")
+        or normalised.startswith("ok")
+    )
+
+    state_update: dict = {
+        "pending_checkpoint": None,
+        "messages": [HumanMessage(content=user_response)],
+    }
+
+    if is_simple_approval and next_stage is not None:
+        state_update["stage"] = next_stage
+        logger.info(
+            "Checkpoint approved ('%s') — advancing to stage %d without LLM call",
+            user_response.strip(), next_stage,
+        )
+    else:
+        logger.info(
+            "Checkpoint response '%s' — returning to orchestrate_node for reasoning",
+            user_response.strip()[:80],
+        )
+
+    return Command(goto="orchestrate", update=state_update)
+
 
 def should_continue(state: dict) -> str:
-    """Route: if last message has tool calls -> 'tools', otherwise -> END."""
+    """Route after orchestrate_node.
+
+    Priority:
+    1. pending_checkpoint set → checkpoint_node (interrupt for human approval)
+    2. last message has tool_calls → tools
+    3. otherwise → END
+    """
+    # Pending checkpoint takes priority — route before checking tool calls.
+    if state.get("pending_checkpoint"):
+        return "checkpoint"
+
     messages = state.get("messages", [])
     if not messages:
         return END

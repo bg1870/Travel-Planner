@@ -6,12 +6,16 @@ Together they form a standard ReAct loop:
   orchestrate -> tools -> orchestrate -> ... -> END.
 
 Context engineering applied here:
-  - Structured state is injected as a <current_state> block every turn so the
-    LLM always has key facts without relying on conversation history retrieval.
-  - Old tool results are pruned: only the last 2 spawn_agent results are kept
-    in full; older ones are reduced to a one-line summary. set_travel_state
-    results are always replaced with "[state updated]" since the state is
-    captured in structured fields.
+  - System prompt is fully static (no per-turn injections) so Anthropic prompt
+    caching can hold it across the entire session.
+  - Compaction snapshots are also marked cacheable — they only change on
+    compaction events, so the cache stays warm for many turns between events.
+  - Structured state + current datetime are injected as a <current_state>
+    block every turn (dynamic — never cached).
+  - Old tool results are pruned: only the last 2 spawn_agent result groups are
+    kept in full; older ones are reduced to a one-line summary. set_travel_state
+    results are always replaced with "[state updated]".
+  - Token usage (including cache hits) is logged after every LLM call.
 """
 
 import asyncio
@@ -25,6 +29,7 @@ logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END
 from langgraph.prebuilt import ToolNode
+from langgraph.types import Command, interrupt
 
 from travel_planner.agents.registry import get_registry_summary
 from travel_planner.agents.runner import spawn_agent
@@ -44,30 +49,67 @@ from travel_planner.session.entries import (
 )
 from travel_planner.skills.loader import load_skill
 from travel_planner.tools.booking import book_flight, book_hotel
+from travel_planner.tools.checkpoint_tool import CHECKPOINT_REQUEST_KEY, request_checkpoint
 from travel_planner.tools.state_updater import set_travel_state
 
 # ---------------------------------------------------------------------------
 # Prompt loading
 # ---------------------------------------------------------------------------
 
-_ORCHESTRATOR_PROMPT_BASE: str | None = None
-
-
-def _orchestrator_prompt_base() -> str:
-    """Load orchestrator template once and inject the static agent registry."""
-    global _ORCHESTRATOR_PROMPT_BASE
-    if _ORCHESTRATOR_PROMPT_BASE is None:
-        prompt_path = Path(__file__).parent.parent / "prompts" / "orchestrator.system.md"
-        raw = prompt_path.read_text()
-        registry_summary = get_registry_summary()
-        _ORCHESTRATOR_PROMPT_BASE = raw.replace("{{AGENT_REGISTRY}}", registry_summary)
-    return _ORCHESTRATOR_PROMPT_BASE
+_SYSTEM_PROMPT: str | None = None
 
 
 def _load_system_prompt() -> str:
-    """Build orchestrator system prompt with fresh current time each turn."""
-    now_str = datetime.now().astimezone().strftime("%c")
-    return _orchestrator_prompt_base().replace("{{CURRENT_DATETIME}}", now_str)
+    """Load orchestrator system prompt once — fully static, no per-turn injections.
+
+    The prompt contains no dynamic placeholders after {{AGENT_REGISTRY}} is
+    filled at startup. Keeping it static is required for Anthropic prompt
+    caching to work: any per-turn change (e.g. injecting the current time)
+    would bust the cache on every call.
+
+    Current date/time is injected via _format_state_context() instead, into
+    the <current_state> block which is explicitly not cached.
+    """
+    global _SYSTEM_PROMPT
+    if _SYSTEM_PROMPT is None:
+        prompt_path = Path(__file__).parent.parent / "prompts" / "orchestrator.system.md"
+        raw = prompt_path.read_text()
+        registry_summary = get_registry_summary()
+        _SYSTEM_PROMPT = raw.replace("{{AGENT_REGISTRY}}", registry_summary)
+    return _SYSTEM_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Anthropic prompt caching helpers
+# ---------------------------------------------------------------------------
+
+def _cached_text(text: str) -> list[dict]:
+    """Wrap a text string in an Anthropic cache_control content block.
+
+    When passed as the `content` of a LangChain message, langchain-anthropic
+    forwards the cache_control field to the API, marking this prefix as
+    cacheable. Subsequent calls with the same prefix pay only the cache-read
+    price (~10% of full input token cost).
+    """
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
+def _system_message(text: str) -> SystemMessage:
+    """Build a SystemMessage, cached if the provider supports it."""
+    if _IS_ANTHROPIC:
+        return SystemMessage(content=_cached_text(text))
+    return SystemMessage(content=text)
+
+
+def _snapshot_message(text: str) -> HumanMessage:
+    """Build the snapshot HumanMessage, cached if the provider supports it.
+
+    Snapshots change only on compaction events (every ~30% of the context
+    window), so the cache stays warm for many turns between recompactions.
+    """
+    if _IS_ANTHROPIC:
+        return HumanMessage(content=_cached_text(text))
+    return HumanMessage(content=text)
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +130,31 @@ def _find_tool_name_for_call(messages: list, tool_call_id: str) -> str:
                 if tc["id"] == tool_call_id:
                     return tc["name"]
     return "unknown"
+
+
+def _extract_checkpoint_request(messages: list) -> dict | None:
+    """Scan messages for a request_checkpoint tool result.
+
+    Returns the checkpoint payload dict if found, None otherwise.
+    Only the most recent request_checkpoint result is returned — earlier
+    ones are assumed to have already been processed.
+    """
+    for msg in reversed(messages):
+        if not isinstance(msg, ToolMessage):
+            continue
+        if _find_tool_name_for_call(messages, msg.tool_call_id) != "request_checkpoint":
+            continue
+        try:
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            result = json.loads(content)
+            if result.get(CHECKPOINT_REQUEST_KEY):
+                return {
+                    "content": result.get("content", ""),
+                    "next_stage": result.get("next_stage"),
+                }
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    return None
 
 
 def _extract_state_updates(messages: list) -> dict:
@@ -120,8 +187,11 @@ def _extract_state_updates(messages: list) -> dict:
 def _format_state_context(state: dict) -> str:
     """Render the current structured state as a <current_state> block.
 
-    Injected into every LLM call so the orchestrator always has key facts
-    without needing to re-derive them from conversation history.
+    This block is injected as a plain (non-cached) SystemMessage every turn.
+    It holds everything that changes between turns:
+      - current_datetime: moved here from the system prompt so the prompt
+        stays static and Anthropic caching works across the whole session.
+      - structured travel state: stage, approvals, constraints, refs.
     """
     stage = state.get("stage") or 1
     stage_labels = {1: "Stage 1 — Planning", 2: "Stage 2 — Selection", 3: "Stage 3 — Booking"}
@@ -133,8 +203,11 @@ def _format_state_context(state: dict) -> str:
     rejection_constraints = state.get("rejection_constraints") or {}
     booking_refs = state.get("booking_refs")
 
+    now_str = datetime.now().astimezone().strftime("%c")
+
     lines = [
         "<current_state>",
+        f"current_datetime: {now_str}",
         f"stage: {label}",
         f"approved_plan: {json.dumps(approved_plan) if approved_plan else 'none'}",
         f"approved_flight: {json.dumps(approved_flight) if approved_flight else 'none'}",
@@ -229,13 +302,53 @@ def _prune_tool_results(messages: list, keep_recent: int = 2) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Token usage logging
+# ---------------------------------------------------------------------------
+
+def _log_token_usage(response: AIMessage) -> None:
+    """Log input/output token counts and Anthropic cache hit/write stats.
+
+    LangChain surfaces token counts in two places:
+      - response.usage_metadata  — standard cross-provider dict
+      - response.response_metadata["usage"] — provider-specific dict
+        (Anthropic adds cache_read_input_tokens / cache_creation_input_tokens)
+    """
+    usage = getattr(response, "usage_metadata", None) or {}
+    provider_usage = (getattr(response, "response_metadata", None) or {}).get("usage", {})
+
+    input_tokens = usage.get("input_tokens", "?")
+    output_tokens = usage.get("output_tokens", "?")
+    cache_read = provider_usage.get("cache_read_input_tokens", 0)
+    cache_write = provider_usage.get("cache_creation_input_tokens", 0)
+
+    if cache_read or cache_write:
+        logger.info(
+            "Token usage — input: %s, output: %s | cache read: %s (saved), cache write: %s (stored)",
+            input_tokens, output_tokens, cache_read, cache_write,
+        )
+    else:
+        logger.info(
+            "Token usage — input: %s, output: %s",
+            input_tokens, output_tokens,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Orchestrate node
 # ---------------------------------------------------------------------------
 
 from travel_planner.models import get_main_model
 
 _model = get_main_model()
-_tools = [spawn_agent, load_skill, set_travel_state, book_flight, book_hotel]
+
+# Cache provider check once — _model never changes after module load.
+try:
+    from langchain_anthropic import ChatAnthropic as _ChatAnthropic
+    _IS_ANTHROPIC: bool = isinstance(_model, _ChatAnthropic)
+except ImportError:
+    _IS_ANTHROPIC = False
+
+_tools = [spawn_agent, load_skill, set_travel_state, request_checkpoint, book_flight, book_hotel]
 _model_with_tools = _model.bind_tools(_tools)
 
 
@@ -355,6 +468,19 @@ async def orchestrate_node(state: dict) -> dict:
         logger.info("Structured state updated: %s", list(state_field_updates.keys()))
         updates.update(state_field_updates)
 
+    # Short-circuit: if the last tool loop included a request_checkpoint call,
+    # store the pending checkpoint and return immediately — no LLM call needed.
+    # should_continue() will route to checkpoint_node which runs interrupt().
+    checkpoint_request = _extract_checkpoint_request(state.get("messages", []))
+    if checkpoint_request:
+        logger.info(
+            "Checkpoint request detected — skipping LLM call, routing to checkpoint_node "
+            "(next_stage=%s)", checkpoint_request.get("next_stage"),
+        )
+        updates["pending_checkpoint"] = checkpoint_request
+        await asyncio.to_thread(_sync_session_file, session_dir, {**state, **updates})
+        return updates
+
     # Merge updates into a working copy for the rest of this turn
     working_state = {**state, **updates}
 
@@ -389,6 +515,10 @@ async def orchestrate_node(state: dict) -> dict:
         return updates
 
     # Build messages for the LLM call
+    # Slot 1 — static system prompt: cached by Anthropic for the session lifetime.
+    # Slot 2 — dynamic state block: never cached (changes every turn).
+    # Slot 3 — snapshot (if any): cached by Anthropic until next compaction.
+    # Slot 4+ — recent messages: never cached (change every turn).
     system_prompt = await asyncio.to_thread(_load_system_prompt)
     state_context = _format_state_context(working_state)
 
@@ -403,15 +533,15 @@ async def orchestrate_node(state: dict) -> dict:
         )
         recent_messages = _prune_tool_results(recent_messages)
         messages = (
-            [SystemMessage(content=system_prompt)]
+            [_system_message(system_prompt)]
             + [SystemMessage(content=state_context)]
-            + [HumanMessage(content=f"## Prior Conversation Summary\n\n{snapshot_content}")]
+            + [_snapshot_message(f"## Prior Conversation Summary\n\n{snapshot_content}")]
             + recent_messages
         )
     else:
         all_messages = _prune_tool_results(list(state.get("messages", [])))
         messages = (
-            [SystemMessage(content=system_prompt)]
+            [_system_message(system_prompt)]
             + [SystemMessage(content=state_context)]
             + all_messages
         )
@@ -421,6 +551,9 @@ async def orchestrate_node(state: dict) -> dict:
         messages,
         config={"metadata": {"session_id": session_id}},
     )
+
+    # Log token usage — includes cache hit/write counts for Anthropic
+    _log_token_usage(response)
 
     # Persist the AI response
     await _persist_response(session_dir, response)
@@ -438,9 +571,72 @@ async def orchestrate_node(state: dict) -> dict:
 
 tool_node = ToolNode(_tools)
 
+# Phrases the checkpoint_node treats as a simple approval — no orchestrator
+# LLM call needed; the stage is advanced deterministically.
+_APPROVAL_PHRASES = frozenset({
+    "yes", "y", "ok", "okay", "sure", "good", "great", "fine",
+    "approved", "approve", "confirm", "confirmed", "proceed",
+    "go ahead", "go", "looks good", "perfect", "sounds good",
+    "absolutely", "definitely", "correct", "right", "agreed",
+})
+
+
+def checkpoint_node(state: dict):
+    """Pause for human approval using LangGraph interrupt().
+
+    Presents the pending_checkpoint content to the user and waits for their
+    response. On simple approval phrases the stage is advanced deterministically
+    (no orchestrator LLM call). On rejections or complex responses control
+    returns to orchestrate_node for reasoning.
+
+    Saves one Sonnet call per checkpoint on the happy path.
+    """
+    checkpoint_data = state.get("pending_checkpoint") or {}
+    content = checkpoint_data.get("content", "")
+    next_stage = checkpoint_data.get("next_stage")
+
+    # Pause execution and surface content to the user.
+    user_response: str = interrupt(content)
+
+    normalised = user_response.strip().lower()
+    is_simple_approval = (
+        normalised in _APPROVAL_PHRASES
+        or normalised.startswith("yes")
+        or normalised.startswith("ok")
+    )
+
+    state_update: dict = {
+        "pending_checkpoint": None,
+        "messages": [HumanMessage(content=user_response)],
+    }
+
+    if is_simple_approval and next_stage is not None:
+        state_update["stage"] = next_stage
+        logger.info(
+            "Checkpoint approved ('%s') — advancing to stage %d without LLM call",
+            user_response.strip(), next_stage,
+        )
+    else:
+        logger.info(
+            "Checkpoint response '%s' — returning to orchestrate_node for reasoning",
+            user_response.strip()[:80],
+        )
+
+    return Command(goto="orchestrate", update=state_update)
+
 
 def should_continue(state: dict) -> str:
-    """Route: if last message has tool calls -> 'tools', otherwise -> END."""
+    """Route after orchestrate_node.
+
+    Priority:
+    1. pending_checkpoint set → checkpoint_node (interrupt for human approval)
+    2. last message has tool_calls → tools
+    3. otherwise → END
+    """
+    # Pending checkpoint takes priority — route before checking tool calls.
+    if state.get("pending_checkpoint"):
+        return "checkpoint"
+
     messages = state.get("messages", [])
     if not messages:
         return END

@@ -72,10 +72,29 @@ class SessionCheckpointer(BaseCheckpointSaver):
 
     # -- BaseCheckpointSaver interface ---------------------------------------
 
+    def _pending_writes_path(self, config: dict) -> Path:
+        return self._session_dir(config) / "pending_writes.json"
+
+    def _load_pending_writes(self, config: dict) -> list:
+        path = self._pending_writes_path(config)
+        if not path.exists():
+            return []
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return []
+
+    def _clear_pending_writes(self, config: dict) -> None:
+        self._pending_writes_path(config).unlink(missing_ok=True)
+
+    # -- BaseCheckpointSaver interface ---------------------------------------
+
     def get_tuple(self, config: dict) -> Optional[CheckpointTuple]:
         """Load the LangGraph checkpoint for a session.
 
         Returns ``None`` if no checkpoint has been saved yet.
+        Includes any pending writes (e.g. interrupt state) so LangGraph
+        can resume mid-node execution after a process restart.
         """
         data = self._load_checkpoint_file(config)
         if data is None:
@@ -84,10 +103,17 @@ class SessionCheckpointer(BaseCheckpointSaver):
         checkpoint: Checkpoint = data.get("checkpoint", {})
         metadata: CheckpointMetadata = data.get("metadata", {})
 
+        raw_writes = self._load_pending_writes(config)
+        pending_writes = (
+            [(w["task_id"], w["channel"], w["value"]) for w in raw_writes]
+            if raw_writes else None
+        )
+
         return CheckpointTuple(
             config=config,
             checkpoint=checkpoint,
             metadata=metadata,
+            pending_writes=pending_writes,
         )
 
     def put(
@@ -97,11 +123,18 @@ class SessionCheckpointer(BaseCheckpointSaver):
         metadata: CheckpointMetadata,
         new_versions: Any = None,
     ) -> dict:
-        """Save a LangGraph checkpoint and sync snapshot fields to session.json."""
+        """Save a LangGraph checkpoint and sync snapshot fields to session.json.
+
+        Clears pending writes on each full checkpoint save — they are only
+        needed between put_writes() and the next full checkpoint.
+        """
         self._save_checkpoint_file(config, {
             "checkpoint": checkpoint,
             "metadata": metadata,
         })
+
+        # Clear pending writes now that a full checkpoint has been saved.
+        self._clear_pending_writes(config)
 
         # Sync snapshot tracking fields to session.json if present.
         channel_values = checkpoint.get("channel_values", {})
@@ -139,5 +172,26 @@ class SessionCheckpointer(BaseCheckpointSaver):
         writes: Sequence[tuple[str, Any]],
         task_id: str,
     ) -> None:
-        """Store intermediate writes. Not needed for our simplified checkpointer."""
-        pass
+        """Persist intermediate writes including interrupt() state.
+
+        LangGraph calls this when a node uses interrupt() to pause execution.
+        The interrupt value is written to the __interrupt__ channel and must
+        survive a process restart so the graph can resume from the same point.
+        """
+        path = self._pending_writes_path(config)
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+        except (json.JSONDecodeError, OSError):
+            existing = []
+
+        for channel, value in writes:
+            existing.append({
+                "task_id": task_id,
+                "channel": channel,
+                "value": value,
+            })
+
+        path.write_text(
+            json.dumps(existing, indent=2, default=str, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )

@@ -31,8 +31,49 @@ from travel_planner.session.persistence import load_conversation, save_snapshot
 _MODEL_CONTEXT_WINDOW = 200_000
 # Compaction triggers when estimated usage reaches this fraction.
 _COMPACTION_THRESHOLD = 0.30
-# Rough chars-per-token ratio for estimation.
-_CHARS_PER_TOKEN = 4
+
+# Fixed overhead added to every estimate to account for tokens that live
+# outside the messages list: system prompt (~1 200 tokens), tool definitions
+# for the 5 orchestrator tools (~600 tokens), and per-message formatting
+# (~4 tokens × message count is handled inline).
+_OVERHEAD_TOKENS = 1_800
+
+# ---------------------------------------------------------------------------
+# Tokenizer (tiktoken, with chars/4 fallback)
+# ---------------------------------------------------------------------------
+
+_TOKENIZER = None
+_TOKENIZER_CHECKED = False
+
+
+def _get_tokenizer():
+    """Return a tiktoken encoder, or None if tiktoken is not installed.
+
+    Uses a separate _TOKENIZER_CHECKED flag so None unambiguously means
+    "unavailable" rather than "not yet tried".
+    """
+    global _TOKENIZER, _TOKENIZER_CHECKED
+    if _TOKENIZER_CHECKED:
+        return _TOKENIZER
+    _TOKENIZER_CHECKED = True
+    try:
+        import tiktoken
+        # cl100k_base is used by GPT-4 and is a close approximation for
+        # Claude models — significantly more accurate than chars / 4,
+        # especially for JSON-heavy tool results.
+        _TOKENIZER = tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        _TOKENIZER = None  # unavailable — fallback to chars / 4
+    return _TOKENIZER
+
+
+def _count_tokens(text: str, enc=None) -> int:
+    """Count tokens in a string using tiktoken, falling back to chars / 4."""
+    if enc is None:
+        enc = _get_tokenizer()
+    if enc is not None:
+        return len(enc.encode(text, disallowed_special=()))
+    return len(text) // 4
 
 # ---------------------------------------------------------------------------
 # Compaction prompt (loaded once, cached at module level)
@@ -56,15 +97,31 @@ async def _get_compaction_prompt() -> str:
 def estimate_token_usage(messages: list[BaseMessage]) -> int:
     """Estimate total token count from a list of LangChain messages.
 
-    Uses a simple chars / 4 heuristic.  This is intentionally conservative
-    -- it only measures message content, not tool definitions or system
-    prompt overhead.
+    Uses tiktoken (cl100k_base) when available, falls back to chars / 4.
+    Adds a fixed overhead of _OVERHEAD_TOKENS to account for the system
+    prompt and tool definitions that are not present in the messages list.
+
+    Per-message formatting cost (~4 tokens for role + delimiters) is also
+    added for accuracy on short conversations.
     """
-    total_chars = 0
+    token_count = _OVERHEAD_TOKENS
+    enc = _get_tokenizer()  # resolve once; avoids repeated global lookup per content block
     for msg in messages:
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        total_chars += len(content)
-    return total_chars // _CHARS_PER_TOKEN
+        # Per-message role/formatting overhead
+        token_count += 4
+        content = msg.content
+        if isinstance(content, str):
+            token_count += _count_tokens(content, enc)
+        elif isinstance(content, list):
+            # Content blocks (e.g. tool result lists, multimodal)
+            for block in content:
+                if isinstance(block, dict):
+                    token_count += _count_tokens(block.get("text", str(block)), enc)
+                else:
+                    token_count += _count_tokens(str(block), enc)
+        else:
+            token_count += _count_tokens(str(content), enc)
+    return token_count
 
 
 def should_compact(messages: list[BaseMessage]) -> bool:

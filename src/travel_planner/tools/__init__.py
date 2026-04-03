@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 
 from travel_planner.tools.booking import book_flight, book_hotel
 from travel_planner.tools.budget import budget_calculator
+from travel_planner.tools.checkpoint_tool import request_checkpoint
 from travel_planner.tools.compare import compare_flights, compare_hotels
 from travel_planner.tools.search import (
     destination_lookup,
@@ -28,6 +29,7 @@ TOOL_REGISTRY: dict[str, BaseTool] = {
     "book_hotel": book_hotel,
     "budget_calculator": budget_calculator,
     "set_travel_state": set_travel_state,
+    "request_checkpoint": request_checkpoint,
 }
 
 __all__ = [
@@ -42,4 +44,5 @@ __all__ = [
     "book_hotel",
     "budget_calculator",
     "set_travel_state",
+    "request_checkpoint",
 ]
